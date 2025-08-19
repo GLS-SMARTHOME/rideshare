@@ -41,6 +41,20 @@
       display: none; /* hidden until ready */
     }
     #startBtn:hover { background: #1e40af; }
+
+    /* PIN input */
+    #pinBox {
+      display: none;
+      gap: 8px;
+    }
+    #pinBox input {
+      width: 50px;
+      height: 60px;
+      font-size: 28px;
+      text-align: center;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
@@ -49,10 +63,15 @@
   <div id="footer">
     <div id="info">Attente de localisations...</div>
     <button id="startBtn">Conduire</button>
+    <div id="pinBox">
+      <input type="text" maxlength="1">
+      <input type="text" maxlength="1">
+      <input type="text" maxlength="1">
+      <input type="text" maxlength="1">
+    </div>
   </div>
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk
-"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk"></script>
 
   <script type="module">
     const riderPath = "USER_LOCATION_RTD_PATH"; // 👈 replace with your RTDB path
@@ -78,6 +97,7 @@
     let hasFitBounds = false;
     const startBtn = document.getElementById("startBtn");
     const infoBox = document.getElementById("info");
+    const pinBox = document.getElementById("pinBox");
 
     // auto-center control
     let autoCenterEnabled = true;
@@ -114,6 +134,21 @@
       suppressMarkers: true
     });
 
+    function haversineDistance(pos1, pos2) {
+      const R = 6371e3; // metres
+      const φ1 = pos1.lat() * Math.PI/180;
+      const φ2 = pos2.lat() * Math.PI/180;
+      const Δφ = (pos2.lat()-pos1.lat()) * Math.PI/180;
+      const Δλ = (pos2.lng()-pos1.lng()) * Math.PI/180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+      return R * c; // in metres
+    }
+
     function drawRoute() {
       if (!userMarker || !riderMarker) return;
       directionsService.route(
@@ -132,7 +167,17 @@
 
             const km = (leg.distance.value / 1000).toFixed(1);
             infoBox.textContent = `Distance: ${leg.duration.text} (${km} km)`;
-            startBtn.style.display = "block";
+
+            // Geofence check (50m)
+            const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
+            if (distMeters <= 75) {
+              startBtn.style.display = "none";
+              pinBox.style.display = "flex";
+              infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
+            } else {
+              startBtn.style.display = "block";
+              pinBox.style.display = "none";
+            }
 
             if (autoCenterEnabled) {
               bounds.clear();
@@ -193,7 +238,7 @@
         if (recenterTimeout) clearTimeout(recenterTimeout);
         recenterTimeout = setTimeout(() => {
           autoCenterEnabled = true;
-          drawRoute(); // force update once recentered
+          drawRoute();
         }, 3000);
       }
     });
