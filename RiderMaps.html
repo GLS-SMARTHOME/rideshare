@@ -1,124 +1,244 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Panier</title>
+  <meta charset="utf-8" />
+  <title>Live Driver to Me • Google Maps + Firebase RTDB</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f9f9f9;
+    :root { --bg:#0b1020; --fg:#e9eef7; --muted:#9fb0c8; --card:#151b2f; --accent:#4da3ff; }
+    html, body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    #map { position:fixed; inset:0; }
+    .panel {
+      position: fixed; left: 12px; right: 12px; bottom: 12px;
+      background: rgba(21,27,47,.9); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,.08); border-radius: 16px; padding: 12px 14px;
+      display:flex; gap:10px; align-items:center; box-shadow: 0 8px 30px rgba(0,0,0,.35);
     }
-    h1 {
-      color: #4CAF50;
-      text-align: center;
-      margin-bottom: 30px;
+    .panel .dot { width:10px; height:10px; border-radius:999px; margin-right:6px; display:inline-block; }
+    .panel .ok { background:#2ecc71; } .panel .warn { background:#f1c40f; } .panel .bad { background:#e74c3c; }
+    .panel .row { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+    .btn {
+      margin-left:auto; background:var(--accent); color:#001018; border:0; padding:10px 14px;
+      border-radius:12px; font-weight:600; cursor:pointer;
     }
-    .cart-item {
-      display: flex;
-      align-items: center;
-      background: white;
-      margin-bottom: 15px;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .toast {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      background:#ff6464; color:#1b0000; padding:10px 14px; border-radius:12px; display:none;
+      box-shadow: 0 6px 20px rgba(0,0,0,.3); font-weight:600;
     }
-    .cart-item img {
-      width: 80px;
-      height: 60px;
-      object-fit: contain;
-      margin-right: 20px;
-      border-radius: 5px;
-    }
-    .item-info {
-      flex-grow: 1;
-    }
-    .item-name {
-      font-weight: bold;
-      margin-bottom: 5px;
-      font-size: 1.1em;
-      color: #222;
-    }
-    .item-price {
-      color: #4CAF50;
-      font-weight: bold;
-      font-size: 1em;
-    }
-    .empty-msg {
-      margin-top: 50px;
-      text-align: center;
-      color: #777;
-      font-style: italic;
-      font-size: 1.2em;
-    }
-    a.back-link {
-      display: block;
-      margin-top: 30px;
-      text-align: center;
-      color: #4CAF50;
-      text-decoration: none;
-      font-weight: bold;
-      font-size: 1.1em;
-    }
-    a.back-link:hover {
-      color: #388e3c;
+    @media (min-width: 720px){
+      .panel { left: 16px; right: auto; width: 520px; }
     }
   </style>
-
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-  <h1>Votre Panier</h1>
-  <div id="cartContainer" role="list"></div>
-  <a href="index.html" class="back-link" aria-label="Retour à la boutique">← Retour à la boutique</a>
+  <div id="map" role="application" aria-label="Live map showing driver approaching your location"></div>
+  <div class="panel" aria-live="polite">
+    <div class="row"><span class="dot ok" id="gpsDot"></span><span id="gpsText">Locating you…</span></div>
+    <div class="row"><span class="dot warn" id="rtdbDot"></span><span id="rtdbText">Waiting for driver…</span></div>
+    <button id="recenterBtn" class="btn" disabled>Recenter</button>
+  </div>
+  <div id="toast" class="toast"></div>
 
-  <script>
-    // Firebase Config (same as index.html)
+  <!-- Google Maps JS API (replace YOUR_GOOGLE_MAPS_API_KEY) -->
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk">
+  </script>
+
+  <!-- Firebase v10 modular (replace with your project config below) -->
+  <script type="module">
+    // ------- Firebase Setup (EDIT THESE VALUES) -------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
     const firebaseConfig = {
-  apiKey: "AIzaSyCbUMHr-1pWWlhlFuyG8E4AdfOYn5tWIhM",
-  authDomain: "food-details-554cf.firebaseapp.com",
-  databaseURL: "https://food-details-554cf-default-rtdb.firebaseio.com",
-  projectId: "food-details-554cf",
-  storageBucket: "food-details-554cf.firebasestorage.app",
-  messagingSenderId: "617865162295",
-  appId: "1:617865162295:web:e8e44fc0c45146ae2819b2",
-  measurementId: "G-VGYFY56WSV"
+  apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
+  authDomain: "xoxo-store.firebaseapp.com",
+  databaseURL: "https://xoxo-store-default-rtdb.firebaseio.com",
+  projectId: "xoxo-store",
+  storageBucket: "xoxo-store.firebasestorage.app",
+  messagingSenderId: "667290233046",
+  appId: "1:667290233046:web:dbbc9130ff38b0900f8177",
+  measurementId: "G-XMJVCK8KMD"
+};
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // ------- Map / Live Tracking -------
+    let map, meMarker, driverMarker, mePos=null, driverPos=null, watchId=null;
+    let dirService, dirRenderer;
+    let autoFollow = true; // keep camera framing both until user pans/zooms manually
+
+    const el = (id)=>document.getElementById(id);
+    const toast = (msg)=>{ const t=el('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none', 3000); };
+
+    // Simple inline SVG icons (no external assets)
+    const personIcon = {
+      url: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+          <g fill="#1f7aff">
+            <circle cx="24" cy="14" r="6"/>
+            <path d="M12 40c0-7 5-12 12-12s12 5 12 12v2H12v-2z"/>
+          </g>
+        </svg>
+      `),
+      scaledSize: new google.maps.Size(36,36),
+      anchor: new google.maps.Point(18,18)
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const carIcon = (headingDeg=0)=>({
+      url: 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 64 64">
+          <g transform="rotate(${headingDeg} 32 32)">
+            <rect x="14" y="20" width="36" height="20" rx="6" ry="6" fill="#111a2f" />
+            <rect x="18" y="24" width="28" height="12" rx="4" ry="4" fill="#4da3ff"/>
+            <circle cx="20" cy="42" r="5" fill="#e9eef7"/>
+            <circle cx="44" cy="42" r="5" fill="#e9eef7"/>
+            <polygon points="32,6 42,22 22,22" fill="#4da3ff"/>
+          </g>
+        </svg>
+      `),
+      scaledSize: new google.maps.Size(40,40),
+      anchor: new google.maps.Point(20,20)
+    });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      const cartContainer = document.getElementById('cartContainer');
+    // Debounce utility for routing
+    const debounce = (fn, ms=800) => {
+      let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), ms); };
+    };
 
-      db.collection('cart').orderBy('addedAt', 'desc').get()
-      .then(snapshot => {
-        if (snapshot.empty) {
-          cartContainer.innerHTML = `<div class="empty-msg">Votre panier est vide.</div>`;
+    // Fit map to include both positions
+    function fitBoundsToBoth() {
+      if (!mePos && !driverPos) return;
+      if (mePos && driverPos) {
+        const b = new google.maps.LatLngBounds();
+        b.extend(mePos); b.extend(driverPos);
+        map.fitBounds(b, { top:80, right:20, bottom:160, left:20 });
+      } else {
+        map.setZoom(16);
+        map.setCenter(mePos || driverPos);
+      }
+    }
+
+    function setStatus(elDotId, elTextId, state, text){
+      const dot = el(elDotId), txt = el(elTextId);
+      dot.classList.remove('ok','warn','bad'); dot.classList.add(state);
+      txt.textContent = text;
+    }
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 39.5, lng: -98.35 }, // US centroid fallback
+        zoom: 5,
+        mapId: 'DEMO_MAP_ID'
+      });
+
+      dirService = new google.maps.DirectionsService();
+      dirRenderer = new google.maps.DirectionsRenderer({
+        suppressMarkers: true,
+        preserveViewport: true,
+        polylineOptions: { strokeWeight: 6 }
+      });
+      dirRenderer.setMap(map);
+
+      // Detect manual map interaction -> stop autoFollow
+      ['dragstart','zoom_changed','tilt_changed','heading_changed'].forEach(ev=>{
+        map.addListener(ev, ()=>{ autoFollow = false; el('recenterBtn').disabled = false; });
+      });
+
+      el('recenterBtn').addEventListener('click', ()=>{
+        autoFollow = true; el('recenterBtn').disabled = true;
+        fitBoundsToBoth();
+      });
+
+      // Get my location (continuous)
+      if ('geolocation' in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          pos => {
+            const { latitude, longitude, accuracy } = pos.coords;
+            mePos = new google.maps.LatLng(latitude, longitude);
+
+            if (!meMarker) {
+              meMarker = new google.maps.Marker({
+                position: mePos, map, icon: personIcon, zIndex: 3, title: 'You'
+              });
+            } else {
+              meMarker.setPosition(mePos);
+            }
+
+            setStatus('gpsDot','gpsText','ok', `You: ${accuracy ? Math.round(accuracy)+'m' : ''} accuracy`);
+            if (autoFollow) fitBoundsToBoth();
+            requestRoute(); // recalc if I moved
+          },
+          err => {
+            setStatus('gpsDot','gpsText','bad', 'Location denied — using map default');
+            toast(`Geolocation error: ${err.message}`);
+          },
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+        );
+      } else {
+        setStatus('gpsDot','gpsText','bad','Geolocation not supported');
+      }
+
+      // Subscribe to driver location in RTDB
+      const driverRef = ref(db, '/driver/location'); // <-- adjust path if needed
+      onValue(driverRef, snapshot=>{
+        const val = snapshot.val();
+        if (!val || typeof val.lat !== 'number' || typeof val.lng !== 'number') {
+          setStatus('rtdbDot','rtdbText','warn','Waiting for driver…');
           return;
         }
+        driverPos = new google.maps.LatLng(val.lat, val.lng);
+        const heading = Number.isFinite(val.heading) ? Number(val.heading) : null;
 
-        snapshot.forEach(doc => {
-          const item = doc.data();
-          const itemHtml = `
-            <div class="cart-item" role="listitem">
-              <img src="${item.image}" alt="${item.name}" />
-              <div class="item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-price">${item.price.toFixed(2)} €</div>
-              </div>
-            </div>
-          `;
-          cartContainer.insertAdjacentHTML('beforeend', itemHtml);
-        });
-      })
-      .catch(err => {
-        cartContainer.innerHTML = `<div class="empty-msg">Erreur de chargement du panier: ${err.message}</div>`;
+        if (!driverMarker) {
+          driverMarker = new google.maps.Marker({
+            position: driverPos, map, icon: carIcon(heading||0), zIndex: 2, title: 'Driver'
+          });
+        } else {
+          driverMarker.setPosition(driverPos);
+          if (heading !== null) driverMarker.setIcon(carIcon(heading));
+          else {
+            // compute approximate bearing to my location if available
+            if (mePos) {
+              const bearingRad = google.maps.geometry.spherical.computeHeading(driverPos, mePos);
+              driverMarker.setIcon(carIcon(bearingRad));
+            }
+          }
+        }
+
+        const ago = val.updated ? Math.max(0, Math.round((Date.now()-val.updated)/1000)) : null;
+        setStatus('rtdbDot','rtdbText','ok', `Driver live${ago!==null?` • ${ago}s ago`:''}`);
+        if (autoFollow) fitBoundsToBoth();
+        requestRoute();
+      }, err=>{
+        setStatus('rtdbDot','rtdbText','bad','RTDB error');
+        toast('Firebase error: '+err.message);
       });
+    }
+
+    const requestRoute = debounce(()=>{
+      if (!mePos || !driverPos) return;
+      dirService.route({
+        origin: driverPos,
+        destination: mePos,
+        travelMode: google.maps.TravelMode.DRIVING,
+        provideRouteAlternatives: false
+      }).then(res=>{
+        dirRenderer.setDirections(res);
+      }).catch(err=>{
+        // If routing fails (e.g., quota), still fit bounds so user sees both markers
+        console.warn('Directions error', err);
+      });
+    }, 900);
+
+    // Wait for Google Maps to be ready
+    const waitForMaps = () => new Promise((resolve)=>{
+      const chk = ()=>{ if (window.google && window.google.maps && window.google.maps.Map) resolve(); else requestAnimationFrame(chk); };
+      chk();
     });
+    waitForMaps().then(initMap);
   </script>
 </body>
 </html>
