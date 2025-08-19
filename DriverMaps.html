@@ -131,7 +131,7 @@
             const leg = res.routes[0].legs[0];
 
             const km = (leg.distance.value / 1000).toFixed(1);
-            infoBox.textContent = `ETA: ${leg.duration.text} (${km} km)`;
+            infoBox.textContent = `Distance: ${leg.duration.text} (${km} km)`;
             startBtn.style.display = "block";
 
             if (autoCenterEnabled) {
