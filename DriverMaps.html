@@ -8,7 +8,6 @@
     html, body { height: 100%; margin: 0; font-family: sans-serif; }
     #map { height: 100%; width: 100%; }
 
-    /* Footer bar */
     #footer {
       position: absolute;
       bottom: 0;
@@ -23,12 +22,10 @@
       justify-content: center;
       gap: 6px;
     }
-
     #info {
       font-size: 20px;
       color: #111;
     }
-
     #startBtn {
       width: 75%;
       max-width: 500px;
@@ -42,27 +39,23 @@
       font-weight: bold;
       text-align: center;
       transition: background 0.2s ease;
+      display: none; /* hidden until ready */
     }
-    #startBtn:hover {
-      background: #1e40af;
-    }
+    #startBtn:hover { background: #1e40af; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Footer Controls -->
   <div id="footer">
     <div id="info">Attente de localisations...</div>
     <button id="startBtn">Conduire</button>
   </div>
 
-  <!-- Google Maps API -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk"></script>
 
-  <!-- Firebase + App Code -->
   <script type="module">
-    const riderPath = "riders/driver1/location";
+    const riderPath = "USER_LOCATION_RTD_PATH";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
@@ -80,30 +73,29 @@
 
     let map, userMarker, riderMarker, directionsService, directionsRenderer;
     const bounds = new google.maps.LatLngBounds();
+    let routeUpdater = null;
+    const startBtn = document.getElementById("startBtn");
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Marker icons
     const personIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 10,
-      fillColor: "#3b82f6", // blue
+      fillColor: "#3b82f6",
       fillOpacity: 1,
       strokeWeight: 2,
       strokeColor: "#1e3a8a"
     };
-
     const riderIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 10,
-      fillColor: "#ef4444", // red
+      fillColor: "#ef4444",
       fillOpacity: 1,
       strokeWeight: 2,
       strokeColor: "#7f1d1d"
     };
 
-    // Init map
     map = new google.maps.Map(document.getElementById("map"), {
       center: { lat: 20, lng: 0 },
       zoom: 2
@@ -115,7 +107,6 @@
       suppressMarkers: true
     });
 
-    // Draw route
     function drawRoute() {
       if (!userMarker || !riderMarker) return;
       directionsService.route(
@@ -123,10 +114,7 @@
           origin: userMarker.getPosition(),
           destination: riderMarker.getPosition(),
           travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: {
-            departureTime: new Date(),
-            trafficModel: "bestguess"
-          }
+          drivingOptions: { departureTime: new Date(), trafficModel: "bestguess" }
         },
         (res, status) => {
           if (status === "OK") {
@@ -134,22 +122,17 @@
             const leg = res.routes[0].legs[0];
             document.getElementById("info").textContent =
               `ETA: ${leg.duration.text} (${leg.distance.text})`;
+            startBtn.style.display = "block";
           }
         }
       );
     }
 
-    // User location
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition((pos) => {
         const latLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         if (!userMarker) {
-          userMarker = new google.maps.Marker({
-            position: latLng,
-            map,
-            title: "You",
-            icon: personIcon
-          });
+          userMarker = new google.maps.Marker({ position: latLng, map, icon: personIcon });
           bounds.extend(latLng);
           map.fitBounds(bounds);
         } else {
@@ -159,19 +142,13 @@
       });
     }
 
-    // Rider location from Firebase
     const riderRef = ref(db, riderPath);
     onValue(riderRef, (snap) => {
       const val = snap.val();
       if (!val) return;
       const latLng = { lat: val.lat, lng: val.lng };
       if (!riderMarker) {
-        riderMarker = new google.maps.Marker({
-          position: latLng,
-          map,
-          title: "Rider",
-          icon: riderIcon
-        });
+        riderMarker = new google.maps.Marker({ position: latLng, map, icon: riderIcon });
         bounds.extend(latLng);
         map.fitBounds(bounds);
       } else {
@@ -180,21 +157,12 @@
       drawRoute();
     });
 
-    // Start button -> both external GMaps + keep updating internal route
-    document.getElementById("startBtn").addEventListener("click", () => {
-      if (!userMarker || !riderMarker) {
-        alert("Both user and rider locations must be available!");
-        return;
-      }
-
-      // External Google Maps navigation
+    startBtn.addEventListener("click", () => {
       const origin = userMarker.getPosition();
       const dest = riderMarker.getPosition();
       const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
       window.open(url, "_blank");
-
-      // Keep recalculating internal route every 10s
-      setInterval(drawRoute, 10000);
+      if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
     });
   </script>
 </body>
