@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -20,25 +20,24 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 8px;
     }
     #info {
-      font-size: 20px;
+      font-size: 18px;
       color: #111;
+      text-align: center;
     }
     #startBtn {
-      width: 75%;
-      max-width: 500px;
+      width: 90%;
+      max-width: 480px;
       background: #2563eb;
       color: white;
       border: none;
-      padding: 16px;
+      padding: 14px;
       border-radius: 12px;
       cursor: pointer;
-      font-size: 22px;
+      font-size: 20px;
       font-weight: bold;
-      text-align: center;
-      transition: background 0.2s ease;
       display: none; /* hidden until ready */
     }
     #startBtn:hover { background: #1e40af; }
@@ -52,11 +51,13 @@
     <button id="startBtn">Conduire</button>
   </div>
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk
+"></script>
 
   <script type="module">
-    const riderPath = "USER_LOCATION_RTD_PATH";
+    const riderPath = "USER_LOCATION_RTD_PATH"; // 👈 replace with your RTDB path
 
+    // Firebase setup
     const firebaseConfig = {
       apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
       authDomain: "xoxo-store.firebaseapp.com",
@@ -74,8 +75,13 @@
     let map, userMarker, riderMarker, directionsService, directionsRenderer;
     const bounds = new google.maps.LatLngBounds();
     let routeUpdater = null;
-    let hasFitBounds = false; // prevent repeated auto zoom
+    let hasFitBounds = false;
     const startBtn = document.getElementById("startBtn");
+    const infoBox = document.getElementById("info");
+
+    // auto-center control
+    let autoCenterEnabled = true;
+    let recenterTimeout = null;
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -115,28 +121,21 @@
           origin: userMarker.getPosition(),
           destination: riderMarker.getPosition(),
           travelMode: google.maps.TravelMode.DRIVING,
-          unitSystem: google.maps.UnitSystem.METRIC, // always km
+          unitSystem: google.maps.UnitSystem.METRIC,
           drivingOptions: { departureTime: new Date(), trafficModel: "pessimistic" },
-          region: "fr" // helps force km output
+          region: "fr"
         },
         (res, status) => {
           if (status === "OK") {
             directionsRenderer.setDirections(res);
             const leg = res.routes[0].legs[0];
 
-            // Distance text already in km, but ensure display
-            let distanceText = leg.distance.text.replace("mi", "miles");
-            if (distanceText.includes("km") === false) {
-              // fallback: convert meters to km
-              const km = (leg.distance.value / 1000).toFixed(1);
-              distanceText = `${km} km`;
-            }
-
-            document.getElementById("info").textContent =
-              `ETA: ${leg.duration.text} (${distanceText})`;
+            const km = (leg.distance.value / 1000).toFixed(1);
+            infoBox.textContent = `ETA: ${leg.duration.text} (${km} km)`;
             startBtn.style.display = "block";
 
-            if (!hasFitBounds) {
+            if (autoCenterEnabled) {
+              bounds.clear();
               bounds.extend(userMarker.getPosition());
               bounds.extend(riderMarker.getPosition());
               map.fitBounds(bounds);
@@ -147,6 +146,7 @@
       );
     }
 
+    // Track user
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition((pos) => {
         const latLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -159,6 +159,7 @@
       });
     }
 
+    // Track rider from Firebase
     const riderRef = ref(db, riderPath);
     onValue(riderRef, (snap) => {
       const val = snap.val();
@@ -172,12 +173,29 @@
       drawRoute();
     });
 
+    // Launch Google Maps
     startBtn.addEventListener("click", () => {
       const origin = userMarker.getPosition();
       const dest = riderMarker.getPosition();
       const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
       window.open(url, "_blank");
       if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
+    });
+
+    // Disable auto-center when dragging, re-enable after 3s idle
+    map.addListener("dragstart", () => {
+      autoCenterEnabled = false;
+      if (recenterTimeout) clearTimeout(recenterTimeout);
+    });
+
+    map.addListener("idle", () => {
+      if (!autoCenterEnabled) {
+        if (recenterTimeout) clearTimeout(recenterTimeout);
+        recenterTimeout = setTimeout(() => {
+          autoCenterEnabled = true;
+          drawRoute(); // force update once recentered
+        }, 3000);
+      }
     });
   </script>
 </body>
