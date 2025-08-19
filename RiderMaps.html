@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Live Rider & My Location – Google Maps + Firebase</title>
+  <title>Driving Mode – Rider & My Location</title>
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100%; width: 100%; }
@@ -17,7 +17,7 @@
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       font-family: sans-serif;
-      z-index: 9999; /* ✅ keep above map */
+      z-index: 9999;
       text-align: center;
     }
     #info {
@@ -70,7 +70,7 @@
     const personIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 10,
-      fillColor: "#3b82f6", // blue
+      fillColor: "#3b82f6",
       fillOpacity: 1,
       strokeWeight: 2,
       strokeColor: "#1e3a8a"
@@ -79,7 +79,7 @@
     const riderIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 10,
-      fillColor: "#ef4444", // red
+      fillColor: "#ef4444",
       fillOpacity: 1,
       strokeWeight: 2,
       strokeColor: "#7f1d1d"
@@ -93,8 +93,8 @@
     const db = getDatabase(app);
 
     map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 20, lng: 0 },
-      zoom: 2
+      center: { lat: 0, lng: 0 },
+      zoom: 15 // temporary, will auto-fit later
     });
 
     // Route services
@@ -108,6 +108,14 @@
     });
     directionsRenderer.setMap(map);
 
+    function fitToMarkers() {
+      if (!userMarker || !riderMarker) return;
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend(userMarker.getPosition());
+      bounds.extend(riderMarker.getPosition());
+      map.fitBounds(bounds);
+    }
+
     function drawRoute() {
       if (!started || !userMarker || !riderMarker) return;
 
@@ -117,7 +125,7 @@
           destination: riderMarker.getPosition(),
           travelMode: google.maps.TravelMode.DRIVING,
           drivingOptions: {
-            departureTime: new Date(), // now
+            departureTime: new Date(),
             trafficModel: "bestguess"
           }
         },
@@ -125,7 +133,10 @@
           if (status === "OK") {
             directionsRenderer.setDirections(result);
 
-            // Extract distance & duration
+            // Auto zoom to route
+            map.fitBounds(result.routes[0].bounds);
+
+            // Show info
             const leg = result.routes[0].legs[0];
             document.getElementById("info").innerHTML = `
               🚗 Distance: <b>${leg.distance.text}</b><br>
@@ -149,10 +160,10 @@
             title: "You",
             icon: personIcon
           });
-          map.setCenter(latLng);
         } else {
           userMarker.setPosition(latLng);
         }
+        fitToMarkers();
         drawRoute();
       });
     }
@@ -173,6 +184,7 @@
       } else {
         riderMarker.setPosition(latLng);
       }
+      fitToMarkers();
       drawRoute();
     });
 
