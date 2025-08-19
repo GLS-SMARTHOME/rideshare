@@ -74,6 +74,7 @@
     let map, userMarker, riderMarker, directionsService, directionsRenderer;
     const bounds = new google.maps.LatLngBounds();
     let routeUpdater = null;
+    let hasFitBounds = false; // prevent repeated auto zoom
     const startBtn = document.getElementById("startBtn");
 
     const app = initializeApp(firebaseConfig);
@@ -114,15 +115,33 @@
           origin: userMarker.getPosition(),
           destination: riderMarker.getPosition(),
           travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: { departureTime: new Date(), trafficModel: "bestguess" }
+          unitSystem: google.maps.UnitSystem.METRIC, // always km
+          drivingOptions: { departureTime: new Date(), trafficModel: "pessimistic" },
+          region: "fr" // helps force km output
         },
         (res, status) => {
           if (status === "OK") {
             directionsRenderer.setDirections(res);
             const leg = res.routes[0].legs[0];
+
+            // Distance text already in km, but ensure display
+            let distanceText = leg.distance.text.replace("mi", "miles");
+            if (distanceText.includes("km") === false) {
+              // fallback: convert meters to km
+              const km = (leg.distance.value / 1000).toFixed(1);
+              distanceText = `${km} km`;
+            }
+
             document.getElementById("info").textContent =
-              `ETA: ${leg.duration.text} (${leg.distance.text})`;
+              `ETA: ${leg.duration.text} (${distanceText})`;
             startBtn.style.display = "block";
+
+            if (!hasFitBounds) {
+              bounds.extend(userMarker.getPosition());
+              bounds.extend(riderMarker.getPosition());
+              map.fitBounds(bounds);
+              hasFitBounds = true;
+            }
           }
         }
       );
@@ -133,8 +152,6 @@
         const latLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         if (!userMarker) {
           userMarker = new google.maps.Marker({ position: latLng, map, icon: personIcon });
-          bounds.extend(latLng);
-          map.fitBounds(bounds);
         } else {
           userMarker.setPosition(latLng);
         }
@@ -149,8 +166,6 @@
       const latLng = { lat: val.lat, lng: val.lng };
       if (!riderMarker) {
         riderMarker = new google.maps.Marker({ position: latLng, map, icon: riderIcon });
-        bounds.extend(latLng);
-        map.fitBounds(bounds);
       } else {
         riderMarker.setPosition(latLng);
       }
