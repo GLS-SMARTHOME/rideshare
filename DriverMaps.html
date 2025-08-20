@@ -8,6 +8,21 @@
     html, body { height: 100%; margin: 0; font-family: sans-serif; }
     #map { height: 100%; width: 100%; }
 
+    /* HEADER */
+    #header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: #2563eb;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      text-align: center;
+      padding: 10px;
+      z-index: 1000;
+    }
+
     #footer {
       position: absolute;
       bottom: 0;
@@ -65,6 +80,9 @@
 <body>
   <div id="map"></div>
 
+  <!-- Destination header -->
+  <div id="header">📍 Chargement destination...</div>
+
   <div id="footer">
     <div id="customerInfo">Chargement client...</div>
     <div id="info">Attente de localisations...</div>
@@ -108,6 +126,7 @@
     const infoBox = document.getElementById("info");
     const pinBox = document.getElementById("pinBox");
     const customerInfo = document.getElementById("customerInfo");
+    const header = document.getElementById("header");
     let expectedPin = null;
     let unsubscribeRider = null;
     let expectedPinMatched = false;
@@ -148,7 +167,7 @@
     });
 
     function haversineDistance(pos1, pos2) {
-      const R = 6371e3; // metres
+      const R = 6371e3;
       const φ1 = pos1.lat() * Math.PI/180;
       const φ2 = pos2.lat() * Math.PI/180;
       const Δφ = (pos2.lat()-pos1.lat()) * Math.PI/180;
@@ -158,8 +177,7 @@
                 Math.cos(φ1) * Math.cos(φ2) *
                 Math.sin(Δλ/2) * Math.sin(Δλ/2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-      return R * c; // in metres
+      return R * c;
     }
 
     function drawRoute() {
@@ -177,20 +195,23 @@
           if (status === "OK") {
             directionsRenderer.setDirections(res);
             const leg = res.routes[0].legs[0];
-
             const km = (leg.distance.value / 1000).toFixed(1);
             infoBox.textContent = `Distance: ${leg.duration.text} (${km} km)`;
 
-            // Geofence check (50m)
+            // Geofence UI
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
-            if (distMeters <= 950 && !expectedPinMatched) {
-              pinBox.style.display = "flex";
-              startBtn.style.display = "none"; // hide conduire
-              infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
-            } else {
-              if (!expectedPinMatched) {
+            if (!expectedPinMatched) {
+              if (distMeters <= 950) {
+                pinBox.style.display = "flex";
+                startBtn.style.display = "none";
+                infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
+              } else {
+                pinBox.style.display = "none";
                 startBtn.style.display = "block";
               }
+            } else {
+              pinBox.style.display = "none";
+              startBtn.style.display = "block";
             }
 
             if (autoCenterEnabled) {
@@ -220,12 +241,10 @@
     // --- Subscribe to rider path
     function subscribeRider(path) {
       if (unsubscribeRider) unsubscribeRider();
-
       const riderRef = ref(db, path);
       unsubscribeRider = onValue(riderRef, (snap) => {
         const val = snap.val();
         if (!val) return;
-
         if (val.lat && val.lng) {
           const latLng = { lat: val.lat, lng: val.lng };
           if (!riderMarker) {
@@ -237,23 +256,14 @@
         }
       });
     }
-
     // Start with pickup location
     subscribeRider(riderPickupPath);
 
     // --- Subscribe to PIN
-    const pinRef = ref(db, pinPath);
-    onValue(pinRef, (snap) => {
-      expectedPin = snap.val();
-    });
+    onValue(ref(db, pinPath), (snap) => expectedPin = snap.val());
 
     // --- Subscribe to NAME + PHONE
-    const nameRef = ref(db, namePath);
-    const phoneRef = ref(db, phonePath);
-
-    let customerName = "";
-    let customerPhone = "";
-
+    let customerName = "", customerPhone = "";
     function updateCustomerInfo() {
       if (customerName || customerPhone) {
         customerInfo.textContent = `👤 ${customerName || "?"}   |   📞 ${customerPhone || "?"}`;
@@ -261,32 +271,54 @@
         customerInfo.textContent = "Chargement client...";
       }
     }
+    onValue(ref(db, namePath), (snap) => { customerName = snap.val() || ""; updateCustomerInfo(); });
+    onValue(ref(db, phonePath), (snap) => { customerPhone = snap.val() || ""; updateCustomerInfo(); });
 
-    onValue(nameRef, (snap) => {
-      customerName = snap.val() || "";
-      updateCustomerInfo();
+    // --- Geocoder for pickup & drop
+    const geocoder = new google.maps.Geocoder();
+    let pickupAddress = "";
+    let dropAddress = "";
+
+    onValue(ref(db, riderPickupPath), (snap) => {
+      const val = snap.val();
+      if (val && val.lat && val.lng) {
+        geocoder.geocode({ location: {lat: val.lat, lng: val.lng} }, (results, status) => {
+          if (status === "OK" && results[0]) {
+            pickupAddress = results[0].formatted_address;
+            if (!expectedPinMatched) header.textContent = "📍 Départ: " + pickupAddress;
+          }
+        });
+      }
     });
 
-    onValue(phoneRef, (snap) => {
-      customerPhone = snap.val() || "";
-      updateCustomerInfo();
+    onValue(ref(db, riderDropPath), (snap) => {
+      const val = snap.val();
+      if (val && val.lat && val.lng) {
+        geocoder.geocode({ location: {lat: val.lat, lng: val.lng} }, (results, status) => {
+          if (status === "OK" && results[0]) {
+            dropAddress = results[0].formatted_address;
+            if (expectedPinMatched) header.textContent = "📍 Destination: " + dropAddress;
+          }
+        });
+      }
     });
 
     // --- PIN input handling
     function checkPin() {
       const entered = Array.from(document.querySelectorAll("#pinBox input"))
-                           .map(inp => inp.value)
-                           .join("");
+                           .map(inp => inp.value).join("");
       if (entered.length === 4 && expectedPin && entered === expectedPin) {
         expectedPinMatched = true;
         infoBox.textContent = "Code PIN correct ✅";
         pinBox.style.display = "none";
-        startBtn.style.display = "block"; // re-show conduire
+        startBtn.style.display = "block";
         subscribeRider(riderDropPath);
+        if (dropAddress) {
+          header.textContent = "📍 Destination: " + dropAddress;
+        }
         drawRoute();
       }
     }
-
     document.querySelectorAll("#pinBox input").forEach((input, idx, arr) => {
       input.addEventListener("input", () => {
         input.value = input.value.replace(/[^0-9]/g, "");
