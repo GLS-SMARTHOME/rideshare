@@ -87,8 +87,9 @@
     };
 
     // Paths
-    const riderPath = "A0000001/PICK_UP_LOCATION";   // 👈 initial rider path
-    const newRiderPath = "A0000001/DROP_OFF_LOCATION"; // 👈 after PIN validation
+    const riderPickupPath = "Riders/A0000001/PICK_UP_LOCATION";
+    const riderDropPath   = "Riders/A0000001/DROP_OFF_LOCATION";
+    const pinPath         = "Riders/A0000001/pin";
 
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
@@ -172,13 +173,14 @@
 
             // Geofence check (50m)
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
-            if (distMeters <= 50) {
+            if (distMeters <= 6650) {
               startBtn.style.display = "none";
               pinBox.style.display = "flex";
               infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
             } else {
-              startBtn.style.display = "block";
-              pinBox.style.display = "none";
+              if (!expectedPin || pinBox.style.display === "none") {
+                startBtn.style.display = "block";
+              }
             }
 
             if (autoCenterEnabled) {
@@ -214,10 +216,6 @@
         const val = snap.val();
         if (!val) return;
 
-        // expected PIN
-        if (val.pin) expectedPin = val.pin;
-
-        // rider position
         if (val.lat && val.lng) {
           const latLng = { lat: val.lat, lng: val.lng };
           if (!riderMarker) {
@@ -230,8 +228,14 @@
       });
     }
 
-    // start with initial rider path
-    subscribeRider(riderPath);
+    // Start with pickup location
+    subscribeRider(riderPickupPath);
+
+    // --- Subscribe to PIN
+    const pinRef = ref(db, pinPath);
+    onValue(pinRef, (snap) => {
+      expectedPin = snap.val();
+    });
 
     // --- PIN input handling
     function checkPin() {
@@ -240,7 +244,10 @@
                            .join("");
       if (entered.length === 4 && expectedPin && entered === expectedPin) {
         infoBox.textContent = "Code PIN correct ✅";
-        subscribeRider(newRiderPath);
+        pinBox.style.display = "none";
+        startBtn.style.display = "block";
+        subscribeRider(riderDropPath);
+        drawRoute();
       }
     }
 
