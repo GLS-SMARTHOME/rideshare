@@ -48,8 +48,8 @@
       gap: 8px;
     }
     #pinBox input {
-      width: 25px;
-      height: 35px;
+      width: 40px;
+      height: 50px;
       font-size: 28px;
       text-align: center;
       border: 2px solid #ccc;
@@ -64,19 +64,17 @@
     <div id="info">Attente de localisations...</div>
     <button id="startBtn">Conduire</button>
     <div id="pinBox">
-<input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">      
-<input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-<input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
-<input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
     </div>
   </div>
 
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk"></script>
 
   <script type="module">
-    const riderPath = "USER_LOCATION_RTD_PATH"; // 👈 replace with your RTDB path
-
-    // Firebase setup
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
       authDomain: "xoxo-store.firebaseapp.com",
@@ -88,18 +86,22 @@
       measurementId: "G-XMJVCK8KMD"
     };
 
+    // Paths
+    const riderPath = "USER_LOCATION_RTD_PATH";   // 👈 initial rider path
+    const newRiderPath = "NEW_RIDER_PATH";        // 👈 destination path after PIN
+
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 
     let map, userMarker, riderMarker, directionsService, directionsRenderer;
-    const bounds = new google.maps.LatLngBounds();
     let routeUpdater = null;
-    let hasFitBounds = false;
     const startBtn = document.getElementById("startBtn");
     const infoBox = document.getElementById("info");
     const pinBox = document.getElementById("pinBox");
+    let expectedPin = null;
+    let unsubscribeRider = null;
 
-    // auto-center control
+    // Auto-center control
     let autoCenterEnabled = true;
     let recenterTimeout = null;
 
@@ -170,7 +172,7 @@
 
             // Geofence check (50m)
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
-            if (distMeters <= 75) {
+            if (distMeters <= 50) {
               startBtn.style.display = "none";
               pinBox.style.display = "flex";
               infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
@@ -180,11 +182,10 @@
             }
 
             if (autoCenterEnabled) {
-              bounds.clear();
+              const bounds = new google.maps.LatLngBounds();
               bounds.extend(userMarker.getPosition());
               bounds.extend(riderMarker.getPosition());
               map.fitBounds(bounds);
-              hasFitBounds = true;
             }
           }
         }
@@ -204,37 +205,71 @@
       });
     }
 
-    // Track rider from Firebase
-    const riderRef = ref(db, riderPath);
-    onValue(riderRef, (snap) => {
-      const val = snap.val();
-      if (!val) return;
-      const latLng = { lat: val.lat, lng: val.lng };
-      if (!riderMarker) {
-        riderMarker = new google.maps.Marker({ position: latLng, map, icon: riderIcon });
-      } else {
-        riderMarker.setPosition(latLng);
+    // --- Subscribe to rider path
+    function subscribeRider(path) {
+      if (unsubscribeRider) unsubscribeRider();
+
+      const riderRef = ref(db, path);
+      unsubscribeRider = onValue(riderRef, (snap) => {
+        const val = snap.val();
+        if (!val) return;
+
+        // expected PIN
+        if (val.pin) expectedPin = val.pin;
+
+        // rider position
+        if (val.lat && val.lng) {
+          const latLng = { lat: val.lat, lng: val.lng };
+          if (!riderMarker) {
+            riderMarker = new google.maps.Marker({ position: latLng, map, icon: riderIcon });
+          } else {
+            riderMarker.setPosition(latLng);
+          }
+          drawRoute();
+        }
+      });
+    }
+
+    // start with initial rider path
+    subscribeRider(riderPath);
+
+    // --- PIN input handling
+    function checkPin() {
+      const entered = Array.from(document.querySelectorAll("#pinBox input"))
+                           .map(inp => inp.value)
+                           .join("");
+      if (entered.length === 4 && expectedPin && entered === expectedPin) {
+        infoBox.textContent = "Code PIN correct ✅";
+        subscribeRider(newRiderPath);
       }
-      drawRoute();
+    }
+
+    document.querySelectorAll("#pinBox input").forEach((input, idx, arr) => {
+      input.addEventListener("input", () => {
+        input.value = input.value.replace(/[^0-9]/g, "");
+        if (input.value && idx < arr.length - 1) arr[idx + 1].focus();
+        checkPin();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !input.value && idx > 0) arr[idx - 1].focus();
+      });
     });
 
     // Launch Google Maps
     startBtn.addEventListener("click", () => {
-  if (!userMarker || !riderMarker) return;
-  const origin = userMarker.getPosition();
-  const dest = riderMarker.getPosition();
-  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
-  window.open(url, "_blank");
-  if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
-});
-
+      if (!userMarker || !riderMarker) return;
+      const origin = userMarker.getPosition();
+      const dest = riderMarker.getPosition();
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
+      window.open(url, "_blank");
+      if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
+    });
 
     // Disable auto-center when dragging, re-enable after 3s idle
     map.addListener("dragstart", () => {
       autoCenterEnabled = false;
       if (recenterTimeout) clearTimeout(recenterTimeout);
     });
-
     map.addListener("idle", () => {
       if (!autoCenterEnabled) {
         if (recenterTimeout) clearTimeout(recenterTimeout);
@@ -244,18 +279,7 @@
         }, 3000);
       }
     });
-    
-    document.querySelectorAll("#pinBox input").forEach((input, idx, arr) => {
-  input.addEventListener("input", () => {
-    input.value = input.value.replace(/[^0-9]/g, ""); // keep only numbers
-    if (input.value && idx < arr.length - 1) arr[idx + 1].focus();
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Backspace" && !input.value && idx > 0) arr[idx - 1].focus();
-  });
-});
-
-
   </script>
 </body>
 </html>
+
