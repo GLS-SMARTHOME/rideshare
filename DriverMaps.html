@@ -220,12 +220,14 @@
 
     // Launch Google Maps
     startBtn.addEventListener("click", () => {
-      const origin = userMarker.getPosition();
-      const dest = riderMarker.getPosition();
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
-      window.open(url, "_blank");
-      if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
-    });
+  if (!userMarker || !riderMarker) return;
+  const origin = userMarker.getPosition();
+  const dest = riderMarker.getPosition();
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
+  window.open(url, "_blank");
+  if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
+});
+
 
     // Disable auto-center when dragging, re-enable after 3s idle
     map.addListener("dragstart", () => {
@@ -242,6 +244,16 @@
         }, 3000);
       }
     });
+    
+    document.querySelectorAll("#pinBox input").forEach((input, idx, arr) => {
+  input.addEventListener("input", () => {
+    if (input.value && idx < arr.length - 1) arr[idx + 1].focus();
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Backspace" && !input.value && idx > 0) arr[idx - 1].focus();
+  });
+});
+
   </script>
 </body>
 </html>
