@@ -201,7 +201,7 @@
             // Geofence UI
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
             if (!expectedPinMatched) {
-              if (distMeters <= 950) {
+              if (distMeters <= 9150) {
                 pinBox.style.display = "flex";
                 startBtn.style.display = "none";
                 infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
@@ -265,12 +265,16 @@
     // --- Subscribe to NAME + PHONE
     let customerName = "", customerPhone = "";
     function updateCustomerInfo() {
-      if (customerName || customerPhone) {
-        customerInfo.textContent = `👤 ${customerName || "?"}   |   📞 ${customerPhone || "?"}`;
-      } else {
-        customerInfo.textContent = "Chargement client...";
-      }
-    }
+  if (customerName || customerPhone) {
+    let phoneHTML = customerPhone 
+      ? `<a href="tel:${customerPhone}" style="color:#2563eb; text-decoration:none;">${customerPhone}</a>` 
+      : "?";
+    customerInfo.innerHTML = `👤 ${customerName || "?"} &nbsp; | &nbsp; 📞 ${phoneHTML}`;
+  } else {
+    customerInfo.textContent = "Chargement client...";
+  }
+}
+
     onValue(ref(db, namePath), (snap) => { customerName = snap.val() || ""; updateCustomerInfo(); });
     onValue(ref(db, phonePath), (snap) => { customerPhone = snap.val() || ""; updateCustomerInfo(); });
 
