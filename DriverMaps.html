@@ -88,7 +88,7 @@
 
     // Paths
     const riderPath = "USER_LOCATION_RTD_PATH";   // 👈 initial rider path
-    const newRiderPath = "NEW_RIDER_PATH";        // 👈 destination path after PIN
+    const newRiderPath = "NEW_RIDER_PATH";        // 👈 destination path afterPIN
 
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
@@ -172,7 +172,7 @@
 
             // Geofence check (50m)
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
-            if (distMeters <= 50) {
+            if (distMeters <= 3350) {
               startBtn.style.display = "none";
               pinBox.style.display = "flex";
               infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
