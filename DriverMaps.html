@@ -22,6 +22,11 @@
       justify-content: center;
       gap: 8px;
     }
+    #customerInfo {
+      font-size: 16px;
+      color: #333;
+      text-align: center;
+    }
     #info {
       font-size: 18px;
       color: #111;
@@ -38,7 +43,7 @@
       cursor: pointer;
       font-size: 20px;
       font-weight: bold;
-      display: none; /* hidden until ready */
+      display: block;
     }
     #startBtn:hover { background: #1e40af; }
 
@@ -61,6 +66,7 @@
   <div id="map"></div>
 
   <div id="footer">
+    <div id="customerInfo">Chargement client...</div>
     <div id="info">Attente de localisations...</div>
     <button id="startBtn">Conduire</button>
     <div id="pinBox">
@@ -90,6 +96,8 @@
     const riderPickupPath = "Riders/A0000001/PICK_UP_LOCATION";
     const riderDropPath   = "Riders/A0000001/DROP_OFF_LOCATION";
     const pinPath         = "Riders/A0000001/pin";
+    const namePath        = "Riders/A0000001/NAME";
+    const phonePath       = "Riders/A0000001/PHONE";
 
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
@@ -99,8 +107,10 @@
     const startBtn = document.getElementById("startBtn");
     const infoBox = document.getElementById("info");
     const pinBox = document.getElementById("pinBox");
+    const customerInfo = document.getElementById("customerInfo");
     let expectedPin = null;
     let unsubscribeRider = null;
+    let expectedPinMatched = false;
 
     // Auto-center control
     let autoCenterEnabled = true;
@@ -173,12 +183,12 @@
 
             // Geofence check (50m)
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
-            if (distMeters <= 6650) {
-              startBtn.style.display = "none";
+            if (distMeters <= 950 && !expectedPinMatched) {
               pinBox.style.display = "flex";
+              startBtn.style.display = "none"; // hide conduire
               infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
             } else {
-              if (!expectedPin || pinBox.style.display === "none") {
+              if (!expectedPinMatched) {
                 startBtn.style.display = "block";
               }
             }
@@ -237,15 +247,41 @@
       expectedPin = snap.val();
     });
 
+    // --- Subscribe to NAME + PHONE
+    const nameRef = ref(db, namePath);
+    const phoneRef = ref(db, phonePath);
+
+    let customerName = "";
+    let customerPhone = "";
+
+    function updateCustomerInfo() {
+      if (customerName || customerPhone) {
+        customerInfo.textContent = `👤 ${customerName || "?"}   |   📞 ${customerPhone || "?"}`;
+      } else {
+        customerInfo.textContent = "Chargement client...";
+      }
+    }
+
+    onValue(nameRef, (snap) => {
+      customerName = snap.val() || "";
+      updateCustomerInfo();
+    });
+
+    onValue(phoneRef, (snap) => {
+      customerPhone = snap.val() || "";
+      updateCustomerInfo();
+    });
+
     // --- PIN input handling
     function checkPin() {
       const entered = Array.from(document.querySelectorAll("#pinBox input"))
                            .map(inp => inp.value)
                            .join("");
       if (entered.length === 4 && expectedPin && entered === expectedPin) {
+        expectedPinMatched = true;
         infoBox.textContent = "Code PIN correct ✅";
         pinBox.style.display = "none";
-        startBtn.style.display = "block";
+        startBtn.style.display = "block"; // re-show conduire
         subscribeRider(riderDropPath);
         drawRoute();
       }
