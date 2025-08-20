@@ -28,7 +28,7 @@
       text-align: center;
     }
     #startBtn {
-      width: 90%;
+      width: 60%;
       max-width: 480px;
       background: #2563eb;
       color: white;
@@ -48,9 +48,9 @@
       gap: 8px;
     }
     #pinBox input {
-      width: 40px;
-      height: 50px;
-      font-size: 28px;
+      width: 25px;
+      height: 35px;
+      font-size: 22px;
       text-align: center;
       border: 2px solid #ccc;
       border-radius: 4px;
@@ -87,8 +87,8 @@
     };
 
     // Paths
-    const riderPath = "USER_LOCATION_RTD_PATH";   // 👈 initial rider path
-    const newRiderPath = "NEW_RIDER_PATH";        // 👈 destination path afterPIN
+    const riderPath = "A0000001/PICK_UP_LOCATION";   // 👈 initial rider path
+    const newRiderPath = "A0000001/DROP_OFF_LOCATION"; // 👈 after PIN validation
 
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
@@ -172,7 +172,7 @@
 
             // Geofence check (50m)
             const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
-            if (distMeters <= 3350) {
+            if (distMeters <= 50) {
               startBtn.style.display = "none";
               pinBox.style.display = "flex";
               infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
@@ -282,4 +282,3 @@
   </script>
 </body>
 </html>
-
