@@ -1,57 +1,80 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Driving Mode – Rider & My Location</title>
+  <title>Live Rider & My Location – Google Maps + Firebase</title>
   <style>
-    html, body { height: 100%; margin: 0; }
+    html, body { height: 100%; margin: 0; font-family: sans-serif; }
     #map { height: 100%; width: 100%; }
-    #controls {
+
+    #footer {
       position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: white;
-      padding: 8px 12px;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      font-family: sans-serif;
-      z-index: 9999;
-      text-align: center;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #fff;
+      box-shadow: 0 -2px 6px rgba(0,0,0,0.15);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     #info {
-      margin-top: 6px;
-      font-size: 14px;
+      font-size: 18px;
       color: #111;
+      text-align: center;
     }
-    button {
+    #startBtn {
+      width: 60%;
+      max-width: 480px;
       background: #2563eb;
       color: white;
       border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
+      padding: 14px;
+      border-radius: 12px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 20px;
+      font-weight: bold;
+      display: none; /* hidden until ready */
     }
-    button:hover {
-      background: #1e40af;
+    #startBtn:hover { background: #1e40af; }
+
+    /* PIN input */
+    #pinBox {
+      display: none;
+      gap: 8px;
+    }
+    #pinBox input {
+      width: 25px;
+      height: 35px;
+      font-size: 22px;
+      text-align: center;
+      border: 2px solid #ccc;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
-  <div id="controls">
-    <button id="startBtn">Start</button>
-    <div id="info"></div>
-  </div>
   <div id="map"></div>
 
-  <!-- Google Maps API -->
+  <div id="footer">
+    <div id="info">Attente de localisations...</div>
+    <button id="startBtn">Conduire</button>
+    <div id="pinBox">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+    </div>
+  </div>
+
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk"></script>
 
   <script type="module">
-    const riderPath = "riders/driver1/location";
-
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
       authDomain: "xoxo-store.firebaseapp.com",
@@ -63,10 +86,29 @@
       measurementId: "G-XMJVCK8KMD"
     };
 
+    // Paths
+    const riderPickupPath = "Riders/A0000001/PICK_UP_LOCATION";
+    const riderDropPath   = "Riders/A0000001/DROP_OFF_LOCATION";
+    const pinPath         = "Riders/A0000001/pin";
+
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getDatabase, ref, onValue } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
 
-    // Circle icons
+    let map, userMarker, riderMarker, directionsService, directionsRenderer;
+    let routeUpdater = null;
+    const startBtn = document.getElementById("startBtn");
+    const infoBox = document.getElementById("info");
+    const pinBox = document.getElementById("pinBox");
+    let expectedPin = null;
+    let unsubscribeRider = null;
+
+    // Auto-center control
+    let autoCenterEnabled = true;
+    let recenterTimeout = null;
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
     const personIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 10,
@@ -75,7 +117,6 @@
       strokeWeight: 2,
       strokeColor: "#1e3a8a"
     };
-
     const riderIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 10,
@@ -85,113 +126,165 @@
       strokeColor: "#7f1d1d"
     };
 
-    let map, userMarker, riderMarker;
-    let directionsService, directionsRenderer;
-    let started = false;
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-
     map = new google.maps.Map(document.getElementById("map"), {
-      center: { lat: 0, lng: 0 },
-      zoom: 15 // temporary, will auto-fit later
+      center: { lat: 20, lng: 0 },
+      zoom: 2
     });
 
-    // Route services
     directionsService = new google.maps.DirectionsService();
     directionsRenderer = new google.maps.DirectionsRenderer({
-      suppressMarkers: true,
-      polylineOptions: {
-        strokeColor: "#2563eb",
-        strokeWeight: 5
-      }
+      map: map,
+      suppressMarkers: true
     });
-    directionsRenderer.setMap(map);
 
-    function fitToMarkers() {
-      if (!userMarker || !riderMarker) return;
-      const bounds = new google.maps.LatLngBounds();
-      bounds.extend(userMarker.getPosition());
-      bounds.extend(riderMarker.getPosition());
-      map.fitBounds(bounds);
+    function haversineDistance(pos1, pos2) {
+      const R = 6371e3; // metres
+      const φ1 = pos1.lat() * Math.PI/180;
+      const φ2 = pos2.lat() * Math.PI/180;
+      const Δφ = (pos2.lat()-pos1.lat()) * Math.PI/180;
+      const Δλ = (pos2.lng()-pos1.lng()) * Math.PI/180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+      return R * c; // in metres
     }
 
     function drawRoute() {
-      if (!started || !userMarker || !riderMarker) return;
-
+      if (!userMarker || !riderMarker) return;
       directionsService.route(
         {
           origin: userMarker.getPosition(),
           destination: riderMarker.getPosition(),
           travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: {
-            departureTime: new Date(),
-            trafficModel: "bestguess"
-          }
+          unitSystem: google.maps.UnitSystem.METRIC,
+          drivingOptions: { departureTime: new Date(), trafficModel: "pessimistic" },
+          region: "fr"
         },
-        (result, status) => {
+        (res, status) => {
           if (status === "OK") {
-            directionsRenderer.setDirections(result);
+            directionsRenderer.setDirections(res);
+            const leg = res.routes[0].legs[0];
 
-            // Auto zoom to route
-            map.fitBounds(result.routes[0].bounds);
+            const km = (leg.distance.value / 1000).toFixed(1);
+            infoBox.textContent = `Distance: ${leg.duration.text} (${km} km)`;
 
-            // Show info
-            const leg = result.routes[0].legs[0];
-            document.getElementById("info").innerHTML = `
-              🚗 Distance: <b>${leg.distance.text}</b><br>
-              ⏱ Duration (traffic): <b>${leg.duration_in_traffic?.text || leg.duration.text}</b>
-            `;
-          } else {
-            console.warn("Directions request failed:", status);
+            // Geofence check (50m)
+            const distMeters = haversineDistance(userMarker.getPosition(), riderMarker.getPosition());
+            if (distMeters <= 6650) {
+              startBtn.style.display = "none";
+              pinBox.style.display = "flex";
+              infoBox.textContent = "Vous êtes arrivé – Entrez le code PIN";
+            } else {
+              if (!expectedPin || pinBox.style.display === "none") {
+                startBtn.style.display = "block";
+              }
+            }
+
+            if (autoCenterEnabled) {
+              const bounds = new google.maps.LatLngBounds();
+              bounds.extend(userMarker.getPosition());
+              bounds.extend(riderMarker.getPosition());
+              map.fitBounds(bounds);
+            }
           }
         }
       );
     }
 
-    // User location
+    // Track user
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition((pos) => {
         const latLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         if (!userMarker) {
-          userMarker = new google.maps.Marker({
-            position: latLng,
-            map,
-            title: "You",
-            icon: personIcon
-          });
+          userMarker = new google.maps.Marker({ position: latLng, map, icon: personIcon });
         } else {
           userMarker.setPosition(latLng);
         }
-        fitToMarkers();
         drawRoute();
       });
     }
 
-    // Rider from RTDB
-    const riderRef = ref(db, riderPath);
-    onValue(riderRef, (snap) => {
-      const val = snap.val();
-      if (!val) return;
-      const latLng = { lat: val.lat, lng: val.lng };
-      if (!riderMarker) {
-        riderMarker = new google.maps.Marker({
-          position: latLng,
-          map,
-          title: "Rider",
-          icon: riderIcon
-        });
-      } else {
-        riderMarker.setPosition(latLng);
-      }
-      fitToMarkers();
-      drawRoute();
+    // --- Subscribe to rider path
+    function subscribeRider(path) {
+      if (unsubscribeRider) unsubscribeRider();
+
+      const riderRef = ref(db, path);
+      unsubscribeRider = onValue(riderRef, (snap) => {
+        const val = snap.val();
+        if (!val) return;
+
+        if (val.lat && val.lng) {
+          const latLng = { lat: val.lat, lng: val.lng };
+          if (!riderMarker) {
+            riderMarker = new google.maps.Marker({ position: latLng, map, icon: riderIcon });
+          } else {
+            riderMarker.setPosition(latLng);
+          }
+          drawRoute();
+        }
+      });
+    }
+
+    // Start with pickup location
+    subscribeRider(riderPickupPath);
+
+    // --- Subscribe to PIN
+    const pinRef = ref(db, pinPath);
+    onValue(pinRef, (snap) => {
+      expectedPin = snap.val();
     });
 
-    // Start button
-    document.getElementById("startBtn").addEventListener("click", () => {
-      started = true;
-      drawRoute();
+    // --- PIN input handling
+    function checkPin() {
+      const entered = Array.from(document.querySelectorAll("#pinBox input"))
+                           .map(inp => inp.value)
+                           .join("");
+      if (entered.length === 4 && expectedPin && entered === expectedPin) {
+        infoBox.textContent = "Code PIN correct ✅";
+        pinBox.style.display = "none";
+        startBtn.style.display = "block";
+        subscribeRider(riderDropPath);
+        drawRoute();
+      }
+    }
+
+    document.querySelectorAll("#pinBox input").forEach((input, idx, arr) => {
+      input.addEventListener("input", () => {
+        input.value = input.value.replace(/[^0-9]/g, "");
+        if (input.value && idx < arr.length - 1) arr[idx + 1].focus();
+        checkPin();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !input.value && idx > 0) arr[idx - 1].focus();
+      });
+    });
+
+    // Launch Google Maps
+    startBtn.addEventListener("click", () => {
+      if (!userMarker || !riderMarker) return;
+      const origin = userMarker.getPosition();
+      const dest = riderMarker.getPosition();
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat()},${origin.lng()}&destination=${dest.lat()},${dest.lng()}&travelmode=driving`;
+      window.open(url, "_blank");
+      if (!routeUpdater) routeUpdater = setInterval(drawRoute, 10000);
+    });
+
+    // Disable auto-center when dragging, re-enable after 3s idle
+    map.addListener("dragstart", () => {
+      autoCenterEnabled = false;
+      if (recenterTimeout) clearTimeout(recenterTimeout);
+    });
+    map.addListener("idle", () => {
+      if (!autoCenterEnabled) {
+        if (recenterTimeout) clearTimeout(recenterTimeout);
+        recenterTimeout = setTimeout(() => {
+          autoCenterEnabled = true;
+          drawRoute();
+        }, 3000);
+      }
     });
   </script>
 </body>
