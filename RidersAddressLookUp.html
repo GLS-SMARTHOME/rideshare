@@ -30,6 +30,7 @@
       align-items: center;
       gap: 8px;
       max-width: 95%;
+      flex-wrap: nowrap; /* keep input and button on one line */
     }
     #dropoff {
       flex: 1;
@@ -51,24 +52,20 @@
       cursor: pointer;
       transition: 0.2s;
       white-space: nowrap;
+      flex-shrink: 0; /* prevent shrinking */
     }
     #saveBtn:hover {
       background: #2563eb;
     }
 
     /* Mobile responsiveness */
-    @media (max-width: 600px) {
+    @media (max-width: 400px) {
       #dropoff-container {
         flex-direction: column;
         align-items: stretch;
         gap: 6px;
       }
-      #dropoff {
-        width: 100%;
-        font-size: 18px;
-        padding: 12px;
-      }
-      #saveBtn {
+      #dropoff, #saveBtn {
         width: 100%;
         font-size: 18px;
         padding: 12px;
@@ -78,8 +75,8 @@
 </head>
 <body>
   <div id="dropoff-container">
-    <input id="dropoff" type="text" placeholder="Enter drop-off address">
-    <button id="saveBtn">Set Drop-off</button>
+    <input id="dropoff" type="text" placeholder="Entrer votre destination">
+    <button id="saveBtn">Confirmer</button>
   </div>
   <div id="map"></div>
 
@@ -110,7 +107,7 @@
     let map, geocoder, directionsService, directionsRenderer;
     let userMarker, dropoffMarker;
     let initialLoad = true;
-    let lastDropoffLocation = null; // for preview route
+    let lastDropoffLocation = null;
 
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
@@ -122,7 +119,8 @@
           { elementType: 'labels.text.fill', stylers: [{color: '#e2e8f0'}]},
           { featureType: 'road', elementType: 'geometry', stylers: [{color: '#1e293b'}]},
           { featureType: 'road', elementType: 'labels.text.fill', stylers: [{color: '#e2e8f0'}]}
-        ]
+        ],
+        gestureHandling: "greedy"
       });
 
       geocoder = new google.maps.Geocoder();
@@ -142,7 +140,6 @@
         strokeColor: "#1e3a8a"
       };
 
-      // Watch real-time location
       if (navigator.geolocation) {
         navigator.geolocation.watchPosition((position) => {
           const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
@@ -160,7 +157,6 @@
 
           db.ref(`Riders/${riderId}/PICK_UP_LOCATION`).set(pos).catch(console.error);
 
-          // Update preview route if drop-off chosen
           if (lastDropoffLocation) {
             drawRoute(pos, lastDropoffLocation);
           }
@@ -170,7 +166,6 @@
         alert("Geolocation not supported by your browser.");
       }
 
-      // Autocomplete
       const input = document.getElementById("dropoff");
       const autocomplete = new google.maps.places.Autocomplete(input);
       autocomplete.bindTo("bounds", map);
@@ -195,7 +190,6 @@
         map.panTo(location);
       });
 
-      // Save to Firebase
       document.getElementById("saveBtn").addEventListener("click", () => {
         if (!lastDropoffLocation) { alert("Select a drop-off first."); return; }
 
