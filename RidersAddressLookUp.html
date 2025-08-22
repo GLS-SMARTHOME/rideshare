@@ -11,11 +11,11 @@
     font-family: Arial, sans-serif;
     background: #1e293b;
     color: #e2e8f0;
-    overflow: hidden; /* prevent scroll */
+    overflow: hidden;
   }
 
   #map {
-    height: 100vh; /* full viewport height */
+    height: 100vh;
     width: 100%;
   }
 
@@ -31,8 +31,8 @@
     align-items: center;
     gap: 6px;
     width: 95%;
-    max-width: 360px; /* smaller max-width */
-    padding: 6px; /* smaller padding */
+    max-width: 360px;
+    padding: 6px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.5);
   }
 
@@ -61,8 +61,20 @@
     background: #2563eb;
   }
 
-  /* Small screens stack input + button */
-  @media (max-width: 95%;) {
+  #info {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    z-index: 10;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+
+  @media (max-width: 600px) {
     #dropoff-container {
       flex-direction: column;
       align-items: stretch;
@@ -70,7 +82,7 @@
       gap: 4px;
     }
     #dropoff, #saveBtn {
-      width: 90%;
+      width: 100%;
       font-size: 18px;
       padding: 8px;
     }
@@ -78,124 +90,139 @@
 </style>
 </head>
 <body>
-  <div id="dropoff-container">
-    <input id="dropoff" type="text" placeholder="Entrer destination">
-    <button id="saveBtn">Confirmer</button>
-  </div>
-  <div id="map"></div>
+<div id="dropoff-container">
+  <input id="dropoff" type="text" placeholder="Entrer destination">
+  <button id="saveBtn">Confirmer</button>
+</div>
+<div id="map"></div>
+<div id="info"></div>
 
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-  <!-- Google Maps -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk&libraries=places"></script>
+<!-- Google Maps -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDjdnkFWOnh1u2cWf5RFURytU8Zk3fmOhk&libraries=places"></script>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
-      authDomain: "xoxo-store.firebaseapp.com",
-      databaseURL: "https://xoxo-store-default-rtdb.firebaseio.com",
-      projectId: "xoxo-store",
-      storageBucket: "xoxo-store.firebasestorage.app",
-      messagingSenderId: "667290233046",
-      appId: "1:667290233046:web:dbbc9130ff38b0900f8177",
-      measurementId: "G-XMJVCK8KMD"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
+  authDomain: "xoxo-store.firebaseapp.com",
+  databaseURL: "https://xoxo-store-default-rtdb.firebaseio.com",
+  projectId: "xoxo-store",
+  storageBucket: "xoxo-store.firebasestorage.app",
+  messagingSenderId: "667290233046",
+  appId: "1:667290233046:web:dbbc9130ff38b0900f8177",
+  measurementId: "G-XMJVCK8KMD"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-    const riderId = "A0000001";
+const riderId = "A0000001";
 
-    let map, geocoder, directionsService, directionsRenderer;
-    let userMarker, dropoffMarker;
-    let lastDropoffLocation = null;
+let map, geocoder, directionsService, directionsRenderer;
+let userMarker, dropoffMarker;
+let lastDropoffLocation = null;
+let firstUpdate = true;
 
-    function initMap() {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 0, lng: 0 },
-        zoom: 15,
-        styles: [
-          { elementType: 'geometry', stylers: [{color: '#0f172a'}]},
-          { elementType: 'labels.text.stroke', stylers: [{color: '#1e293b'}]},
-          { elementType: 'labels.text.fill', stylers: [{color: '#e2e8f0'}]},
-          { featureType: 'road', elementType: 'geometry', stylers: [{color: '#1e293b'}]},
-          { featureType: 'road', elementType: 'labels.text.fill', stylers: [{color: '#e2e8f0'}]}
-        ],
-        gestureHandling: "greedy"
-      });
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: 0, lng: 0 },
+    zoom: 15,
+    styles: [
+      { elementType: 'geometry', stylers: [{color: '#0f172a'}]},
+      { elementType: 'labels.text.stroke', stylers: [{color: '#1e293b'}]},
+      { elementType: 'labels.text.fill', stylers: [{color: '#e2e8f0'}]},
+      { featureType: 'road', elementType: 'geometry', stylers: [{color: '#1e293b'}]},
+      { featureType: 'road', elementType: 'labels.text.fill', stylers: [{color: '#e2e8f0'}]}
+    ],
+    gestureHandling: "greedy"
+  });
 
-      geocoder = new google.maps.Geocoder();
-      directionsService = new google.maps.DirectionsService();
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        map: map,
-        suppressMarkers: true,
-        polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 5 }
-      });
+  geocoder = new google.maps.Geocoder();
+  directionsService = new google.maps.DirectionsService();
+  directionsRenderer = new google.maps.DirectionsRenderer({
+    map: map,
+    suppressMarkers: true,
+    polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 5 }
+  });
 
-      const personIcon = {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 10,
-        fillColor: "#3b82f6",
-        fillOpacity: 1,
-        strokeWeight: 2,
-        strokeColor: "#1e293a"
-      };
+  const personIcon = {
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: 10,
+    fillColor: "#3b82f6",
+    fillOpacity: 1,
+    strokeWeight: 2,
+    strokeColor: "#3b82f6"
+  };
 
-      if (navigator.geolocation) {
-        navigator.geolocation.watchPosition((posData) => {
-          const pos = { lat: posData.coords.latitude, lng: posData.coords.longitude };
-          if (!userMarker) userMarker = new google.maps.Marker({ position: pos, map: map, icon: personIcon, title: "You" });
-          else userMarker.setPosition(pos);
-          map.setCenter(pos);
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition((posData) => {
+      const pos = { lat: posData.coords.latitude, lng: posData.coords.longitude };
 
-          db.ref(`Riders/${riderId}/PICK_UP_LOCATION`).set(pos).catch(console.error);
+      if (!userMarker) {
+        userMarker = new google.maps.Marker({ position: pos, map: map, icon: personIcon, title: "You" });
+      } else {
+        userMarker.setPosition(pos);
+      }
 
-          if (lastDropoffLocation) drawRoute(pos, lastDropoffLocation);
-        }, console.error, { enableHighAccuracy: true, maximumAge: 0 });
-      } else alert("Geolocation not supported");
+      if (firstUpdate) {
+        map.setCenter(pos);
+        firstUpdate = false;
+      }
 
-      const input = document.getElementById("dropoff");
-      const autocomplete = new google.maps.places.Autocomplete(input);
-      autocomplete.bindTo("bounds", map);
+      db.ref(`Riders/${riderId}/PICK_UP_LOCATION`).set(pos).catch(console.error);
 
-      autocomplete.addListener("place_changed", () => {
-        const place = autocomplete.getPlace();
-        if (!place.geometry) return;
+      if (lastDropoffLocation) drawRoute(pos, lastDropoffLocation);
+    }, console.error, { enableHighAccuracy: true, maximumAge: 0 });
+  } else alert("Geolocation not supported");
 
-        const loc = place.geometry.location;
+  const input = document.getElementById("dropoff");
+  const autocomplete = new google.maps.places.Autocomplete(input);
+  autocomplete.bindTo("bounds", map);
 
-        if (dropoffMarker) dropoffMarker.setMap(null);
-        dropoffMarker = new google.maps.Marker({ position: loc, map: map, title: "Drop-off", icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png" });
+  autocomplete.addListener("place_changed", () => {
+    const place = autocomplete.getPlace();
+    if (!place.geometry) return;
 
-        lastDropoffLocation = loc;
+    const loc = place.geometry.location;
 
-        if (userMarker) drawRoute(userMarker.getPosition(), loc);
-        map.panTo(loc);
-      });
+    if (dropoffMarker) dropoffMarker.setMap(null);
+    dropoffMarker = new google.maps.Marker({ position: loc, map: map, title: "Drop-off", icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png" });
 
-      document.getElementById("saveBtn").addEventListener("click", () => {
-        if (!lastDropoffLocation) return alert("Choisir adresse SVP!");
+    lastDropoffLocation = loc;
 
-        geocoder.geocode({ location: lastDropoffLocation }, (results, status) => {
-          if (status === "OK" && results[0]) {
-            db.ref(`Riders/${riderId}/DROP_OFF_LOCATION`).set({
-              lat: lastDropoffLocation.lat(),
-              lng: lastDropoffLocation.lng(),
-              address: results[0].formatted_address
-            }).then(() => alert("Drop-off saved!")).catch(console.error);
-          } else alert("Imposible d'enregistrer !: " + status);
-        });
-      });
+    if (userMarker) drawRoute(userMarker.getPosition(), loc);
+    map.panTo(loc);
+  });
+
+  document.getElementById("saveBtn").addEventListener("click", () => {
+    if (!lastDropoffLocation) return alert("Choisir adresse SVP!");
+
+    geocoder.geocode({ location: lastDropoffLocation }, (results, status) => {
+      if (status === "OK" && results[0]) {
+        db.ref(`Riders/${riderId}/DROP_OFF_LOCATION`).set({
+          lat: lastDropoffLocation.lat(),
+          lng: lastDropoffLocation.lng(),
+          address: results[0].formatted_address
+        }).then(() => alert("Drop-off saved!")).catch(console.error);
+      } else alert("Impossible d'enregistrer !: " + status);
+    });
+  });
+}
+
+function drawRoute(origin, dest) {
+  directionsService.route({ origin, destination: dest, travelMode: "DRIVING" }, (resp, status) => {
+    if (status === "OK") {
+      directionsRenderer.setDirections(resp);
+      // Show ETA & distance
+      const leg = resp.routes[0].legs[0];
+      document.getElementById("info").textContent = `Distance: ${leg.distance.text}, Duration: ${leg.duration.text}`;
     }
+  });
+}
 
-    function drawRoute(origin, dest) {
-      directionsService.route({ origin, destination: dest, travelMode: "DRIVING" }, (resp, status) => {
-        if (status === "OK") directionsRenderer.setDirections(resp);
-      });
-    }
-
-    window.onload = initMap;
-  </script>
+window.onload = initMap;
+</script>
 </body>
 </html>
