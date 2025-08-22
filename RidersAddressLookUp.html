@@ -175,7 +175,7 @@
       });
 
       document.getElementById("saveBtn").addEventListener("click", () => {
-        if (!lastDropoffLocation) return alert("Select a drop-off first.");
+        if (!lastDropoffLocation) return alert("Choisir adresse SVP!");
 
         geocoder.geocode({ location: lastDropoffLocation }, (results, status) => {
           if (status === "OK" && results[0]) {
@@ -184,7 +184,7 @@
               lng: lastDropoffLocation.lng(),
               address: results[0].formatted_address
             }).then(() => alert("Drop-off saved!")).catch(console.error);
-          } else alert("Unable to save drop-off: " + status);
+          } else alert("Imposible d'enregistrer !: " + status);
         });
       });
     }
