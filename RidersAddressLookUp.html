@@ -18,44 +18,68 @@
     }
     #dropoff-container {
       position: absolute;
-      top: 20px;
+      top: 10px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 5;
       background: #0f172a;
-      padding: 15px;
+      padding: 12px;
       border-radius: 10px;
       box-shadow: 0 4px 10px rgba(0,0,0,0.5);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      max-width: 95%;
     }
     #dropoff {
-      width: 300px;
-      padding: 8px;
-      border-radius: 5px;
+      flex: 1;
+      min-width: 180px;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
       border: 1px solid #64748b;
       background: #1e293b;
       color: #f8fafc;
     }
     #saveBtn {
-      padding: 8px 12px;
+      padding: 10px 16px;
+      font-size: 16px;
       background: #3b82f6;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       cursor: pointer;
       transition: 0.2s;
+      white-space: nowrap;
     }
     #saveBtn:hover {
       background: #2563eb;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 600px) {
+      #dropoff-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+      }
+      #dropoff {
+        width: 100%;
+        font-size: 18px;
+        padding: 12px;
+      }
+      #saveBtn {
+        width: 100%;
+        font-size: 18px;
+        padding: 12px;
+      }
     }
   </style>
 </head>
 <body>
   <div id="dropoff-container">
-    <input id="dropoff" type="text" placeholder="Entrer votre destination">
-    <button id="saveBtn">Confirmer</button>
+    <input id="dropoff" type="text" placeholder="Enter drop-off address">
+    <button id="saveBtn">Set Drop-off</button>
   </div>
   <div id="map"></div>
 
@@ -103,7 +127,11 @@
 
       geocoder = new google.maps.Geocoder();
       directionsService = new google.maps.DirectionsService();
-      directionsRenderer = new google.maps.DirectionsRenderer({ map: map, suppressMarkers: true });
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true,
+        polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 5 }
+      });
 
       const personIcon = {
         path: google.maps.SymbolPath.CIRCLE,
@@ -128,13 +156,11 @@
           if (initialLoad) {
             map.setCenter(pos);
             initialLoad = false;
-          } else {
-            map.panTo(pos);
           }
 
           db.ref(`Riders/${riderId}/PICK_UP_LOCATION`).set(pos).catch(console.error);
 
-          // Draw preview route if drop-off is selected
+          // Update preview route if drop-off chosen
           if (lastDropoffLocation) {
             drawRoute(pos, lastDropoffLocation);
           }
@@ -149,25 +175,27 @@
       const autocomplete = new google.maps.places.Autocomplete(input);
       autocomplete.bindTo("bounds", map);
 
-      // When user selects a place from autocomplete
       autocomplete.addListener("place_changed", () => {
         const place = autocomplete.getPlace();
         if (!place.geometry) return;
 
         const location = place.geometry.location;
 
-        // Remove previous preview marker
         if (dropoffMarker) dropoffMarker.setMap(null);
-        dropoffMarker = new google.maps.Marker({ position: location, map: map, title: "Drop-off", icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png" });
+        dropoffMarker = new google.maps.Marker({
+          position: location,
+          map: map,
+          title: "Drop-off",
+          icon: "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+        });
 
         lastDropoffLocation = location;
 
-        // Draw route preview immediately
         if (userMarker) drawRoute(userMarker.getPosition(), location);
         map.panTo(location);
       });
 
-      // Save button writes to Firebase
+      // Save to Firebase
       document.getElementById("saveBtn").addEventListener("click", () => {
         if (!lastDropoffLocation) { alert("Select a drop-off first."); return; }
 
