@@ -39,7 +39,7 @@
   #dropoff {
     flex: 1;
     padding: 8px;
-    font-size: 14px;
+    font-size: 16px;
     border-radius: 6px;
     border: 1px solid #64748b;
     background: #1e293b;
@@ -48,7 +48,7 @@
 
   #saveBtn {
     padding: 8px 12px;
-    font-size: 14px;
+    font-size: 16px;
     background: #3b82f6;
     color: white;
     border: none;
@@ -62,7 +62,7 @@
   }
 
   /* Small screens stack input + button */
-  @media (max-width: 360px) {
+  @media (max-width: 95%;) {
     #dropoff-container {
       flex-direction: column;
       align-items: stretch;
@@ -70,8 +70,8 @@
       gap: 4px;
     }
     #dropoff, #saveBtn {
-      width: 100%;
-      font-size: 14px;
+      width: 90%;
+      font-size: 18px;
       padding: 8px;
     }
   }
@@ -79,7 +79,7 @@
 </head>
 <body>
   <div id="dropoff-container">
-    <input id="dropoff" type="text" placeholder="Entrer votre destination">
+    <input id="dropoff" type="text" placeholder="Entrer destination">
     <button id="saveBtn">Confirmer</button>
   </div>
   <div id="map"></div>
