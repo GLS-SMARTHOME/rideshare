@@ -1,80 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Real-time Location & Drop-off</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #1e293b;
-      color: #e2e8f0;
-      overflow: hidden; /* prevent extra scroll */
-    }
-    #map {
-      height: 100vh; /* full viewport height */
-      width: 100%;
-    }
-    #dropoff-container {
-      position: fixed; /* stay on top */
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 10;
-      background: #0f172a;
-      padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 90%;
-      max-width: 400px;
-      flex-wrap: nowrap;
-    }
-    #dropoff {
-      flex: 1;
-      padding: 10px;
-      font-size: 16px;
-      border-radius: 6px;
-      border: 1px solid #64748b;
-      background: #1e293b;
-      color: #f8fafc;
-    }
-    #saveBtn {
-      padding: 10px 16px;
-      font-size: 16px;
-      background: #3b82f6;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: 0.2s;
-      flex-shrink: 0;
-    }
-    #saveBtn:hover {
-      background: #2563eb;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Real-time Location & Drop-off</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #1e293b;
+    color: #e2e8f0;
+    overflow: hidden; /* prevent scroll */
+  }
 
-    @media (max-width: 400px) {
-      #dropoff-container {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      #dropoff, #saveBtn {
-        width: 100%;
-        font-size: 16px;
-        padding: 10px;
-      }
+  #map {
+    height: 100vh; /* full viewport height */
+    width: 100%;
+  }
+
+  #dropoff-container {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: #0f172a;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 95%;
+    max-width: 360px; /* smaller max-width */
+    padding: 6px; /* smaller padding */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+
+  #dropoff {
+    flex: 1;
+    padding: 8px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #64748b;
+    background: #1e293b;
+    color: #f8fafc;
+  }
+
+  #saveBtn {
+    padding: 8px 12px;
+    font-size: 14px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  #saveBtn:hover {
+    background: #2563eb;
+  }
+
+  /* Small screens stack input + button */
+  @media (max-width: 360px) {
+    #dropoff-container {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 4px;
+      gap: 4px;
     }
-  </style>
+    #dropoff, #saveBtn {
+      width: 100%;
+      font-size: 14px;
+      padding: 8px;
+    }
+  }
+</style>
 </head>
 <body>
   <div id="dropoff-container">
-    <input id="dropoff" type="text" placeholder="Enter drop-off address">
-    <button id="saveBtn">Set Drop-off</button>
+    <input id="dropoff" type="text" placeholder="Entrer votre destination">
+    <button id="saveBtn">Confirmer</button>
   </div>
   <div id="map"></div>
 
@@ -133,16 +139,14 @@
         fillColor: "#3b82f6",
         fillOpacity: 1,
         strokeWeight: 2,
-        strokeColor: "#1e3a8a"
+        strokeColor: "#1e293a"
       };
 
       if (navigator.geolocation) {
         navigator.geolocation.watchPosition((posData) => {
           const pos = { lat: posData.coords.latitude, lng: posData.coords.longitude };
-
           if (!userMarker) userMarker = new google.maps.Marker({ position: pos, map: map, icon: personIcon, title: "You" });
           else userMarker.setPosition(pos);
-
           map.setCenter(pos);
 
           db.ref(`Riders/${riderId}/PICK_UP_LOCATION`).set(pos).catch(console.error);
