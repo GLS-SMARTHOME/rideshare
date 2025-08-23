@@ -1,124 +1,220 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Panier</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f9f9f9;
-    }
-    h1 {
-      color: #4CAF50;
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    .cart-item {
-      display: flex;
-      align-items: center;
-      background: white;
-      margin-bottom: 15px;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
-    }
-    .cart-item img {
-      width: 80px;
-      height: 60px;
-      object-fit: contain;
-      margin-right: 20px;
-      border-radius: 5px;
-    }
-    .item-info {
-      flex-grow: 1;
-    }
-    .item-name {
-      font-weight: bold;
-      margin-bottom: 5px;
-      font-size: 1.1em;
-      color: #222;
-    }
-    .item-price {
-      color: #4CAF50;
-      font-weight: bold;
-      font-size: 1em;
-    }
-    .empty-msg {
-      margin-top: 50px;
-      text-align: center;
-      color: #777;
-      font-style: italic;
-      font-size: 1.2em;
-    }
-    a.back-link {
-      display: block;
-      margin-top: 30px;
-      text-align: center;
-      color: #4CAF50;
-      text-decoration: none;
-      font-weight: bold;
-      font-size: 1.1em;
-    }
-    a.back-link:hover {
-      color: #388e3c;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MyApp Auth</title>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<!-- Firebase SDKs -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+// TODO: Replace with your Firebase config
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAIlkvwyaF6FPPbXBJDqHwuTS5S3QKG3l8",
+  authDomain: "xoxo-store.firebaseapp.com",
+  databaseURL: "https://xoxo-store-default-rtdb.firebaseio.com",
+  projectId: "xoxo-store",
+  storageBucket: "xoxo-store.firebasestorage.app",
+  messagingSenderId: "667290233046",
+  appId: "1:667290233046:web:dbbc9130ff38b0900f8177",
+  measurementId: "G-XMJVCK8KMD"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+window.auth = auth;
+window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+window.RecaptchaVerifier = RecaptchaVerifier;
+window.signInWithPhoneNumber = signInWithPhoneNumber;
+</script>
+
+<style>
+body { margin:0; font-family:"Segoe UI",sans-serif; background:#0f172a; color:#e2e8f0; overflow-x:hidden; }
+
+.splash { position:fixed; top:0; left:0; width:100%; height:100%; background:linear-gradient(135deg,#3b82f6,#1e3a8a); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:1000; animation:fadeOut 1s ease forwards; animation-delay:2.5s;}
+.splash h1 { font-size:2.5rem; color:white; animation:popIn 1s ease; }
+@keyframes popIn {0%{transform:scale(0.5);opacity:0;}100%{transform:scale(1);opacity:1;}}
+@keyframes fadeOut { to { opacity:0; visibility:hidden; } }
+
+.auth-container { display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; padding:1rem; opacity:0; transition:opacity 1s ease; }
+.auth-container.show { display:flex; opacity:1; }
+
+.auth-card { background:#1e293b; padding:2rem; border-radius:1rem; box-shadow:0 8px 24px rgba(0,0,0,0.5); width:100%; max-width:360px; text-align:center; box-sizing:border-box; }
+.auth-card h2 { margin-bottom:1rem; font-size:1.5rem; }
+.auth-card input, .auth-card button { width:100%; padding:0.9rem; margin-bottom:1rem; border-radius:0.5rem; border:none; font-size:1rem; box-sizing:border-box; }
+.auth-card input { background:#334155; color:#f8fafc; }
+.auth-card button { background:#3b82f6; color:white; font-weight:600; cursor:pointer; transition:background 0.3s; }
+.auth-card button:hover { background:#2563eb; }
+.switch-link { margin-top:0.75rem; font-size:0.9rem; cursor:pointer; color:#93c5fd; }
+.phone-row { display:flex; gap:0.5rem; }
+.phone-row input { flex:2; margin-bottom:0; }
+.phone-row button { flex:1; margin-bottom:0; font-size:0.85rem; padding:0.75rem 0.25rem; }
+#otpSection { display:none; margin-bottom:1rem; }
+
+@media (max-width:480px) {
+  .auth-card { padding:1.5rem 1rem; border-radius:0.75rem; }
+  .auth-card h2 { font-size:1.3rem; }
+  .auth-card input, .auth-card button { font-size:1rem; padding:0.8rem; }
+  .switch-link { font-size:0.85rem; }
+}
+</style>
 </head>
 <body>
-  <h1>Votre Panier</h1>
-  <div id="cartContainer" role="list"></div>
-  <a href="index.html" class="back-link" aria-label="Retour à la boutique">← Retour à la boutique</a>
 
-  <script>
-    // Firebase Config (same as index.html)
-    const firebaseConfig = {
-  apiKey: "AIzaSyCbUMHr-1pWWlhlFuyG8E4AdfOYn5tWIhM",
-  authDomain: "food-details-554cf.firebaseapp.com",
-  databaseURL: "https://food-details-554cf-default-rtdb.firebaseio.com",
-  projectId: "food-details-554cf",
-  storageBucket: "food-details-554cf.firebasestorage.app",
-  messagingSenderId: "617865162295",
-  appId: "1:617865162295:web:e8e44fc0c45146ae2819b2",
-  measurementId: "G-VGYFY56WSV"
-    };
+<div class="splash">
+  <h1>🚀 MyApp</h1>
+</div>
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+<div class="auth-container" id="authContainer">
+  <div class="auth-card" id="authBox">
+    <h2 id="formTitle">Sign In</h2>
 
-    window.addEventListener('DOMContentLoaded', () => {
-      const cartContainer = document.getElementById('cartContainer');
+    <!-- Sign In Form -->
+    <div id="signInForm">
+      <input type="tel" id="loginPhone" placeholder="Phone Number" required />
+      <input type="password" id="loginPassword" placeholder="Password" required />
+      <button id="loginBtn">Sign In</button>
+    </div>
 
-      db.collection('cart').orderBy('addedAt', 'desc').get()
-      .then(snapshot => {
-        if (snapshot.empty) {
-          cartContainer.innerHTML = `<div class="empty-msg">Votre panier est vide.</div>`;
-          return;
-        }
+    <!-- Sign Up Form -->
+    <div id="signUpForm" style="display:none;">
+      <input type="text" id="fullName" placeholder="Full Name" required />
 
-        snapshot.forEach(doc => {
-          const item = doc.data();
-          const itemHtml = `
-            <div class="cart-item" role="listitem">
-              <img src="${item.image}" alt="${item.name}" />
-              <div class="item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-price">${item.price.toFixed(2)} €</div>
-              </div>
-            </div>
-          `;
-          cartContainer.insertAdjacentHTML('beforeend', itemHtml);
-        });
-      })
-      .catch(err => {
-        cartContainer.innerHTML = `<div class="empty-msg">Erreur de chargement du panier: ${err.message}</div>`;
-      });
-    });
-  </script>
+      <div class="phone-row">
+        <input type="tel" id="signupPhone" placeholder="Phone number (e.g. +15551234567)" required />
+        <button type="button" id="sendOtpBtn">Send OTP</button>
+      </div>
+
+      <div id="recaptcha-container"></div>
+      <div id="otpSection">
+        <input type="text" id="otpCode" placeholder="Enter OTP" />
+        <button type="button" id="verifyOtpBtn">Verify OTP</button>
+      </div>
+
+      <input type="password" id="password" placeholder="Password" required />
+      <input type="password" id="confirmPassword" placeholder="Confirm Password" required />
+      <button id="signUpBtn" disabled>Create Account</button>
+    </div>
+
+    <div class="switch-link" id="switchMode">Don’t have an account? Sign Up</div>
+  </div>
+</div>
+
+<script type="module">
+const splash = document.querySelector(".splash");
+const authContainer = document.getElementById("authContainer");
+const switchMode = document.getElementById("switchMode");
+const formTitle = document.getElementById("formTitle");
+
+const signInForm = document.getElementById("signInForm");
+const signUpForm = document.getElementById("signUpForm");
+
+const loginBtn = document.getElementById("loginBtn");
+const sendOtpBtn = document.getElementById("sendOtpBtn");
+const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+const signUpBtn = document.getElementById("signUpBtn");
+const otpSection = document.getElementById("otpSection");
+
+let confirmationResult;
+
+// Show auth after splash
+setTimeout(()=>{ splash.style.display="none"; authContainer.classList.add("show"); }, 3500);
+
+// Switch form
+let isSignIn=true;
+switchMode.addEventListener("click",()=>{
+  isSignIn=!isSignIn;
+  if(isSignIn){
+    formTitle.textContent="Sign In";
+    signInForm.style.display="block";
+    signUpForm.style.display="none";
+    switchMode.textContent="Don’t have an account? Sign Up";
+  }else{
+    formTitle.textContent="Sign Up";
+    signInForm.style.display="none";
+    signUpForm.style.display="block";
+    switchMode.textContent="Already have an account? Sign In";
+  }
+});
+
+// Setup invisible reCAPTCHA
+window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
+  'size': 'invisible'
+}, auth);
+
+// Send OTP
+sendOtpBtn.addEventListener("click", async () => {
+  const phone = document.getElementById("signupPhone").value.trim();
+  if(!phone){ alert("Enter phone number"); return; }
+
+  try {
+    confirmationResult = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
+    alert("OTP sent to " + phone);
+    otpSection.style.display="block";
+  } catch(err){ alert(err.message); }
+});
+
+// Verify OTP
+verifyOtpBtn.addEventListener("click", async () => {
+  const code = document.getElementById("otpCode").value.trim();
+  try {
+    await confirmationResult.confirm(code);
+    alert("Phone verified!");
+    signUpBtn.disabled=false;
+    otpSection.style.display="none";
+  } catch(err){ alert("Invalid OTP: " + err.message); }
+});
+
+// Sign Up
+signUpBtn.addEventListener("click", async () => {
+  const fullName=document.getElementById("fullName").value.trim();
+  const phone=document.getElementById("signupPhone").value.trim();
+  const password=document.getElementById("password").value.trim();
+  const confirmPassword=document.getElementById("confirmPassword").value.trim();
+
+  if(!fullName||!phone||!password||!confirmPassword){ alert("All fields required"); return; }
+  if(password!==confirmPassword){ alert("Passwords do not match"); return; }
+
+  const fakeEmail = phone.replace(/\D/g,'')+"@myapp.com";
+  try {
+    await createUserWithEmailAndPassword(auth, fakeEmail, password);
+    alert("Account created successfully!");
+
+    // Switch back to login
+    isSignIn=true;
+    formTitle.textContent="Sign In";
+    signInForm.style.display="block";
+    signUpForm.style.display="none";
+    switchMode.textContent="Don’t have an account? Sign Up";
+
+    // Clear fields
+    document.getElementById("fullName").value="";
+    document.getElementById("signupPhone").value="";
+    document.getElementById("password").value="";
+    document.getElementById("confirmPassword").value="";
+    signUpBtn.disabled=true;
+  } catch(err){ alert(err.message); }
+});
+
+// Sign In
+loginBtn.addEventListener("click", async () => {
+  const phone=document.getElementById("loginPhone").value.trim();
+  const password=document.getElementById("loginPassword").value.trim();
+  if(!phone||!password){ alert("All fields required"); return; }
+  const fakeEmail = phone.replace(/\D/g,'')+"@myapp.com";
+  try {
+    await signInWithEmailAndPassword(auth, fakeEmail, password);
+    alert("Login successful!");
+    // Redirect to home page
+    // window.location.href="home.html";
+  } catch(err){ alert("Login failed: "+err.message); }
+});
+</script>
+
 </body>
 </html>
