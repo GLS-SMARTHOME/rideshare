@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pick a Ride</title>
+  <style>
+    :root{
+      --bg:#0b0f13; --panel:#121821; --text:#e6eef7; --muted:#9fb0c3; --border:#1f2937; --brand:#4ade80;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      display:flex; flex-direction:column; align-items:center; padding:16px;
+    }
+    .list{max-width:500px; width:100%; background:var(--panel); border:1px solid var(--border); border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgb(0 0 0 / .35); flex:1}
+    .item{display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; padding:12px; border-bottom:1px dashed #1a2430; cursor:pointer}
+    .item:last-child{border-bottom:none}
+    .item:hover{background:#0e1520}
+    .item.active{outline:2px solid var(--brand); background:#0e1b14}
+    .thumb {
+  width:120px;   /* was 64px */
+  height:90px;   /* was 48px */
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid var(--border);
+}
+.thumb img{width:100%; height:100%; object-fit:cover}
+    .meta{display:flex; flex-direction:column; gap:2px}
+    .meta .name{font-weight:700; font-size:15px}
+    .meta .cat{font-size:12px; color:var(--muted)}
+    .price{font-weight:800}
+    .confirm-btn{margin-top:16px; padding:12px 20px; background:var(--brand); border:none; border-radius:12px; font-weight:700; font-size:16px; cursor:pointer; color:#000; width:100%; max-width:500px; opacity:0.5; transition:opacity 0.2s}
+    .confirm-btn.enabled{opacity:1}
+    .confirm-btn:active{transform:scale(.98)}
+  </style>
+</head>
+<body>
+  <div id="list" class="list" role="list"></div>
+  <button id="confirmBtn" class="confirm-btn">Confirm Ride</button>
+
+  <script>
+    const cars = [
+      {id:1, name:"Voiture", category:"Economy", price:7.5, img:"https://imgur.com/SCzU1Cs.jpg"},
+      {id:2, name:"SUV", category:"Standard", price:10.0, img:"https://imgur.com/gQcFZb7.jpg"},
+      {id:3, name:"Luxe", category:"XL", price:14.5, img:"https://imgur.com/xLYrsmD.jpg"},
+      {id:4, name:"Van", category:"Premium", price:19.0, img:"https://imgur.com/SVYeRMa.jpg"},
+      
+    ];
+
+    const list = document.getElementById('list');
+    const confirmBtn = document.getElementById('confirmBtn');
+    let selectedCar = null;
+
+    function renderList(){
+      list.innerHTML = '';
+      cars.forEach(car => {
+        const row = document.createElement('div');
+        row.className = 'item';
+        row.setAttribute('role','listitem');
+        row.innerHTML = `
+  <div class="thumb"><img alt="${car.name}" src="${car.img}" loading="lazy"></div>
+  <div class="meta">
+    <div class="name">${car.name}</div>
+    <div class="cat">${car.category}</div>
+  </div>
+  <div class="price">$${car.price.toFixed(2)}</div>
+`;
+
+
+        row.addEventListener('click', () => {
+          document.querySelectorAll('.item').forEach(el => el.classList.remove('active'));
+          row.classList.add('active');
+          selectedCar = car;
+          confirmBtn.classList.add('enabled');
+        });
+
+        list.appendChild(row);
+      });
+    }
+
+    confirmBtn.addEventListener('click', () => {
+      if(selectedCar){
+        alert(`You selected: ${selectedCar.name} ($${selectedCar.price.toFixed(2)})`);
+      } else {
+        alert("Please select a car first.");
+      }
+    });
+
+    renderList();
+  </script>
+</body>
+</html>
